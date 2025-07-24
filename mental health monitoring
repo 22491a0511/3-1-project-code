@@ -1,0 +1,169 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import label_binarize
+from sklearn.metrics import roc_curve, auc, precision_recall_curve
+
+
+# Load the extended dataset
+data = pd.read_csv('eq02_life_monitor_extended_data.csv')
+print(data)
+
+# Convert categorical features into numerical values (One-Hot Encoding)
+data_encoded = pd.get_dummies(data, columns=['Body_Position', 'Activity_Level'], drop_first=True)
+
+# Separate features (X) and the target variable (y)
+X = data_encoded.drop('Label', axis=1)  # Features
+y = data_encoded['Label']  # Target (0 for normal, 1 for abnormal)
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# 1. Random Forest Classifier
+rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_classifier.fit(X_train, y_train)
+y_pred_rf = rf_classifier.predict(X_test)
+accuracy_rf = accuracy_score(y_test, y_pred_rf)
+print("Random Forest Classifier:")
+print(f"Accuracy: {accuracy_rf * 100:.2f}%")
+print("Classification Report:")
+print(classification_report(y_test, y_pred_rf))
+
+# 2. K-Nearest Neighbors (KNN)
+knn_classifier = KNeighborsClassifier(n_neighbors=5)
+knn_classifier.fit(X_train, y_train)
+y_pred_knn = knn_classifier.predict(X_test)
+accuracy_knn = accuracy_score(y_test, y_pred_knn)
+print("\nK-Nearest Neighbors Classifier:")
+print(f"Accuracy: {accuracy_knn * 100:.2f}%")
+print("Classification Report:")
+print(classification_report(y_test, y_pred_knn))
+
+# 3. Support Vector Machine (SVM)
+svm_classifier = SVC(kernel='linear', random_state=42)
+svm_classifier.fit(X_train, y_train)
+y_pred_svm = svm_classifier.predict(X_test)
+accuracy_svm = accuracy_score(y_test, y_pred_svm)
+print("\nSupport Vector Machine Classifier:")
+print(f"Accuracy: {accuracy_svm * 100:.2f}%")
+print("Classification Report:")
+print(classification_report(y_test, y_pred_svm))
+
+# 4. Plotting Feature Importance for Random Forest
+feature_importances = rf_classifier.feature_importances_
+features = X.columns
+
+importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
+importance_df = importance_df.sort_values(by='Importance', ascending=False)
+
+plt.figure(figsize=(10, 8))
+sns.barplot(x='Importance', y='Feature', data=importance_df)
+plt.title('Feature Importance in Random Forest Classifier')
+plt.show()
+
+# 5. Plot Confusion Matrix for each model
+
+# Function to plot confusion matrix
+def plot_confusion_matrix(y_true, y_pred, model_name):
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(6,4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['no mental issue', 'mental issue'], yticklabels=['no mental issue', 'mental issue'])
+    plt.ylabel('Actual')
+    plt.xlabel('Predicted')
+    plt.title(f'Confusion Matrix - {model_name}')
+    plt.show()
+
+# Plot confusion matrix for Random Forest
+plot_confusion_matrix(y_test, y_pred_rf, "Random Forest")
+
+# Plot confusion matrix for KNN
+plot_confusion_matrix(y_test, y_pred_knn, "K-Nearest Neighbors")
+
+# Plot confusion matrix for SVM
+plot_confusion_matrix(y_test, y_pred_svm, "Support Vector Machine")
+
+# 6. Compare accuracy of KNN, SVM, and Random Forest
+
+# Create a dictionary with the accuracies
+accuracy_dict = {
+    'Random Forest': accuracy_rf * 100,
+    'KNN': accuracy_knn * 100,
+    'SVM': accuracy_svm * 100
+}
+
+# Plot the accuracies using a bar chart
+plt.figure(figsize=(8, 6))
+plt.bar(accuracy_dict.keys(), accuracy_dict.values(), color=['blue', 'green', 'orange'])
+plt.ylim([30, 100])
+plt.title('Comparison of Accuracies: KNN, SVM, and Random Forest')
+plt.xlabel('Algorithm')
+plt.ylabel('Accuracy (%)')
+plt.show()
+
+# Print accuracy for each model
+print(f"Random Forest Accuracy: {accuracy_rf * 100:.2f}%")
+print(f"KNN Accuracy: {accuracy_knn * 100:.2f}%")
+print(f"SVM Accuracy: {accuracy_svm * 100:.2f}%")
+
+# Convert true labels to binary format for ROC/Precision-Recall curves
+y_test_bin = label_binarize(y_test, classes=[0, 1])
+
+# Predict probabilities for ROC Curve (for SVM, we use probability=True to get probabilities)
+y_prob_rf = rf_classifier.predict_proba(X_test)[:, 1]
+y_prob_knn = knn_classifier.predict_proba(X_test)[:, 1]
+y_prob_svm = svm_classifier.decision_function(X_test)
+
+# Plot ROC Curves for Random Forest, KNN, and SVM
+plt.figure(figsize=(10, 6))
+
+# Random Forest ROC curve
+fpr_rf, tpr_rf, _ = roc_curve(y_test_bin, y_prob_rf)
+roc_auc_rf = auc(fpr_rf, tpr_rf)
+plt.plot(fpr_rf, tpr_rf, label=f'Random Forest (AUC = {roc_auc_rf:.2f})')
+
+# KNN ROC curve
+fpr_knn, tpr_knn, _ = roc_curve(y_test_bin, y_prob_knn)
+roc_auc_knn = auc(fpr_knn, tpr_knn)
+plt.plot(fpr_knn, tpr_knn, label=f'KNN (AUC = {roc_auc_knn:.2f})')
+
+# SVM ROC curve
+fpr_svm, tpr_svm, _ = roc_curve(y_test_bin, y_prob_svm)
+roc_auc_svm = auc(fpr_svm, tpr_svm)
+plt.plot(fpr_svm, tpr_svm, label=f'SVM (AUC = {roc_auc_svm:.2f})')
+
+# Plot ROC curve
+plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for reference
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.0])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve Comparison')
+plt.legend(loc="lower right")
+plt.show()
+
+# Plot Precision-Recall Curves
+plt.figure(figsize=(10, 6))
+
+# Random Forest Precision-Recall curve
+precision_rf, recall_rf, _ = precision_recall_curve(y_test_bin, y_prob_rf)
+plt.plot(recall_rf, precision_rf, label=f'Random Forest')
+
+# KNN Precision-Recall curve
+precision_knn, recall_knn, _ = precision_recall_curve(y_test_bin, y_prob_knn)
+plt.plot(recall_knn, precision_knn, label=f'KNN')
+
+# SVM Precision-Recall curve
+precision_svm, recall_svm, _ = precision_recall_curve(y_test_bin, y_prob_svm)
+plt.plot(recall_svm, precision_svm, label=f'SVM')
+
+# Plot Precision-Recall curve
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve Comparison')
+plt.legend(loc="lower left")
+plt.show()
